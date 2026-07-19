@@ -254,6 +254,7 @@
   <footer>Times auto-adjust for daylight saving. Edit names & cities above — changes last until the page is reloaded.</footer>
 </div>
 
+<script src="cities.js"></script>
 <script>
 /* ================= EDIT DEFAULTS HERE =================
    When someone moves, change their "zone" below and republish.
@@ -336,7 +337,17 @@ const ZONE_ALIASES = {
   "bali": ["Asia/Makassar"],
 };
 function titleCase(s) { return s.replace(/\b\w/g, c => c.toUpperCase()); }
-/* Returns [{z, label, sub}] — aliases match as you type and appear first */
+
+/* City search index — built once from cities.js (34k world cities).
+   If cities.js somehow fails to load, the picker still works with
+   official timezone names + aliases. */
+const normStr = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const cityIndex = (typeof CITIES !== "undefined")
+  ? CITIES.map(c => ({ n: normStr(c[0]), name: c[0], cc: c[1], z: CITY_ZONES[c[2]] }))
+  : [];
+
+/* Returns [{z, label, sub, place}] — aliases first, then cities
+   (biggest first), then official zone names */
 function zoneMatches(qRaw) {
   const q = qRaw.trim().toLowerCase().replace(/\s+/g, " ");
   const out = [], seen = new Set();
@@ -344,14 +355,30 @@ function zoneMatches(qRaw) {
     for (const k in ZONE_ALIASES) {
       if (k.startsWith(q) || q.startsWith(k)) {
         ZONE_ALIASES[k].forEach(z => {
-          if (!seen.has(k + z)) { out.push({ z, label: titleCase(k), sub: cityOf(z) + " time" }); seen.add(k + z); }
+          if (!seen.has(k + z)) { out.push({ z, label: titleCase(k), sub: cityOf(z) + " time", place: titleCase(k) }); seen.add(k + z); }
         });
+      }
+    }
+    const nq = normStr(q);
+    let hits = 0;
+    for (const c of cityIndex) {          // pass 1: names starting with the query
+      if (c.n.startsWith(nq)) {
+        out.push({ z: c.z, label: c.name + ", " + c.cc, sub: cityOf(c.z) + " time", place: c.name });
+        if (++hits >= 30) break;
+      }
+    }
+    if (hits < 30) {
+      for (const c of cityIndex) {        // pass 2: query anywhere in the name
+        if (!c.n.startsWith(nq) && c.n.includes(nq)) {
+          out.push({ z: c.z, label: c.name + ", " + c.cc, sub: cityOf(c.z) + " time", place: c.name });
+          if (++hits >= 30) break;
+        }
       }
     }
   }
   for (const z of allZones) {
     if (!q || z.toLowerCase().replace(/_/g, " ").replace(/\//g, " ").includes(q)) {
-      out.push({ z, label: cityOf(z), sub: z });
+      out.push({ z, label: cityOf(z), sub: z, place: cityOf(z) });
       if (out.length >= 60) break;
     }
   }
@@ -500,7 +527,7 @@ function renderCards() {
       items = zoneMatches(q);
       active = 0;
       list.innerHTML = items.length
-        ? items.map((it, k) => `<div data-z="${it.z}" data-place="${escapeHtml(it.label)}" class="${k === 0 ? "active" : ""}">${escapeHtml(it.label)} <span style="opacity:.55;font-size:.72rem">${escapeHtml(it.sub)}</span></div>`).join("")
+        ? items.map((it, k) => `<div data-z="${it.z}" data-place="${escapeHtml(it.place)}" class="${k === 0 ? "active" : ""}">${escapeHtml(it.label)} <span style="opacity:.55;font-size:.72rem">${escapeHtml(it.sub)}</span></div>`).join("")
         : `<div style="cursor:default">No matches — try another spelling</div>`;
       list.classList.add("open");
     };
@@ -514,7 +541,7 @@ function renderCards() {
         [...list.children].forEach((c, k) => c.classList.toggle("active", k === active));
         list.children[active].scrollIntoView({ block: "nearest" });
       } else if (e.key === "Enter") {
-        e.preventDefault(); setMemberZone(i, items[active].z, items[active].label);
+        e.preventDefault(); setMemberZone(i, items[active].z, items[active].place);
       } else if (e.key === "Escape") {
         inp.blur();
       }

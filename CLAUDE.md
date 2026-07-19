@@ -16,8 +16,12 @@ Built in Claude Cowork; now maintained here.
 - Live site: https://seanhuangemail-png.github.io/Arkana-Fantastic-Four/
 - Hosting: GitHub Pages, "Deploy from a branch", `main` / root.
   Pushing to `main` redeploys automatically (allow a few minutes).
-- Everything is in one file: `index.html` (inline CSS + JS, no build step,
-  no dependencies, no framework). Keep it that way unless Sean asks otherwise.
+- Almost everything is in one file: `index.html` (inline CSS + JS, no build
+  step, no dependencies, no framework). Keep it that way unless Sean asks
+  otherwise. Two exceptions Sean approved: `cities.js` (34k world cities
+  from GeoNames CC-BY, powering the city search — regenerate from
+  cities15000.zip if it ever needs updating) and `group.jpg` /
+  `Arkana Fantastic Four.png` (ceremony artwork; jpg is the web copy).
 
 ## How the page works
 - Members are defined in the `EDIT DEFAULTS HERE` block near the top of the
