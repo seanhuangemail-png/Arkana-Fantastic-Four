@@ -53,6 +53,7 @@
     background: var(--panel2); color: var(--dim);
     border: 1px solid var(--line); border-radius: 8px;
     padding: 6px 8px; font-size: .82rem;
+    cursor: pointer; color-scheme: dark;
   }
   .card .clock { font-size: 1.9rem; font-weight: 300; margin-top: 12px; font-variant-numeric: tabular-nums; }
   .card .clock .ampm { font-size: 1rem; color: var(--dim); margin-left: 4px; }
@@ -138,7 +139,7 @@
 <div class="wrap">
   <header>
     <h1><span class="leaf">🌿</span> Arkana Fantastic Four</h1>
-    <p>Arkana ayahuasca integration group — find a time when everyone is awake, human, and preferably caffeinated.</p>
+    <p>Arkana ayahuasca integration group — find a time when everyone is awake, human, and connected.</p>
   </header>
 
   <div class="cards" id="cards"></div>
@@ -186,12 +187,15 @@
 <script>
 /* ================= EDIT DEFAULTS HERE =================
    When someone moves, change their "zone" below and republish.
-   Zones are IANA names, e.g. "Asia/Dubai", "Europe/London". */
+   Zones are IANA names, e.g. "Asia/Dubai", "Europe/London".
+   "place" is the friendly label shown on the card (e.g. Minnesota
+   runs on Chicago time, so zone is America/Chicago but place says
+   Minnesota). */
 let members = [
-  { name: "Sean",  zone: "Australia/Sydney" },
-  { name: "Matan", zone: "America/Lima" },
-  { name: "Corey", zone: "America/Chicago" },
-  { name: "Toby",  zone: "Asia/Bangkok" },
+  { name: "Sean",  zone: "Australia/Melbourne", place: "Melbourne" },
+  { name: "Matan", zone: "America/Lima",        place: "Lima, Peru" },
+  { name: "Corey", zone: "America/Chicago",     place: "Minnesota" },
+  { name: "Toby",  zone: "Asia/Bangkok",        place: "Bangkok, Thailand" },
 ];
 /* ====================================================== */
 
@@ -228,6 +232,22 @@ function dateStr(zone, date) {
   }).format(date);
 }
 function cityOf(zone) { return zone.split("/").pop().replace(/_/g, " "); }
+function placeOf(m) { return m.place || cityOf(m.zone); }
+
+/* Build the <option> list for the timezone dropdown, grouped by region */
+function zoneOptions(selected) {
+  const groups = {};
+  allZones.forEach(z => {
+    const g = z.includes("/") ? z.split("/")[0] : "Other";
+    (groups[g] = groups[g] || []).push(z);
+  });
+  return Object.keys(groups).sort().map(g =>
+    `<optgroup label="${g}">` + groups[g].map(z => {
+      const label = z.includes("/") ? z.split("/").slice(1).join(" / ").replace(/_/g, " ") : z;
+      return `<option value="${z}"${z === selected ? " selected" : ""}>${label}</option>`;
+    }).join("") + `</optgroup>`
+  ).join("");
+}
 function quality(hour) {          // start-hour comfort rating
   if (hour >= 8 && hour < 21) return "good";
   if (hour === 7 || (hour >= 21 && hour < 23)) return "ok";
@@ -245,7 +265,7 @@ function renderCards() {
     card.innerHTML = `
       <span class="badge" data-badge="${i}"></span>
       <input class="name" value="${m.name}" data-name="${i}" spellcheck="false">
-      <input class="zone" list="zonelist" value="${m.zone}" data-zone="${i}" spellcheck="false">
+      <select class="zone" data-zone="${i}" title="Timezone">${zoneOptions(m.zone)}</select>
       <div class="clock" data-clock="${i}"></div>
       <div class="date" data-date="${i}"></div>
       ${members.length > 2 ? `<button class="remove" data-remove="${i}">remove</button>` : ""}
@@ -255,16 +275,17 @@ function renderCards() {
   const add = document.createElement("button");
   add.className = "addbtn";
   add.textContent = "+ add person";
-  add.onclick = () => { members.push({ name: "New person", zone: viewerZone }); renderCards(); renderAll(); };
+  add.onclick = () => { members.push({ name: "New person", zone: viewerZone, place: cityOf(viewerZone) }); renderCards(); renderAll(); };
   wrap.appendChild(add);
 
   wrap.querySelectorAll("[data-name]").forEach(el =>
     el.addEventListener("input", e => { members[e.target.dataset.name].name = e.target.value; renderPlanner(); }));
   wrap.querySelectorAll("[data-zone]").forEach(el =>
     el.addEventListener("change", e => {
-      const v = e.target.value.trim();
-      if (allZones.includes(v)) { members[e.target.dataset.zone].zone = v; e.target.style.borderColor = ""; renderAll(); }
-      else e.target.style.borderColor = "#e08a8a";
+      const m = members[e.target.dataset.zone];
+      m.zone = e.target.value;
+      m.place = cityOf(m.zone);   // label follows the new zone
+      renderAll();
     }));
   wrap.querySelectorAll("[data-remove]").forEach(el =>
     el.addEventListener("click", e => { members.splice(e.target.dataset.remove, 1); renderCards(); renderAll(); }));
@@ -279,7 +300,7 @@ function tickClocks() {
     const t = timeStr(m.zone, now, true);
     const mAmpm = t.match(/(am|pm)$/);
     clockEl.innerHTML = t.replace(/(am|pm)$/, "") + `<span class="ampm">${mAmpm ? mAmpm[1] : ""}</span>`;
-    document.querySelector(`[data-date="${i}"]`).textContent = dateStr(m.zone, now) + " · " + cityOf(m.zone);
+    document.querySelector(`[data-date="${i}"]`).textContent = dateStr(m.zone, now) + " · " + placeOf(m);
     const h = partsIn(m.zone, now).hourNum;
     document.querySelector(`[data-badge="${i}"]`).textContent = (h >= 7 && h < 19) ? "☀️" : "🌙";
   });
@@ -362,20 +383,20 @@ function selectSlot(start) {
   members.forEach(m => {
     const q = quality(partsIn(m.zone, start).hourNum);
     rows += `<tr><td>${escapeHtml(m.name)}</td><td>${dateStr(m.zone, start)}, ${timeStr(m.zone, start)} – ${timeStr(m.zone, end)}
-             <span style="color:var(--dim)">(${cityOf(m.zone)})</span><span class="q">${QLABEL[q]}</span></td></tr>`;
+             <span style="color:var(--dim)">(${escapeHtml(placeOf(m))})</span><span class="q">${QLABEL[q]}</span></td></tr>`;
   });
   $("detailsTable").innerHTML = rows;
 
   // Google Calendar link (UTC)
   const fmt = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-  const details = members.map(m => `${m.name}: ${timeStr(m.zone, start)} ${dateStr(m.zone, start)} (${cityOf(m.zone)})`).join("\n");
+  const details = members.map(m => `${m.name}: ${timeStr(m.zone, start)} ${dateStr(m.zone, start)} (${placeOf(m)})`).join("\n");
   $("gcalBtn").href = "https://calendar.google.com/calendar/render?action=TEMPLATE"
     + "&text=" + encodeURIComponent(EVENT_TITLE)
     + "&dates=" + fmt(start) + "/" + fmt(end)
     + "&details=" + encodeURIComponent(details);
 
   const msg = `🌿 ${EVENT_TITLE}\n\n` +
-    members.map(m => `${m.name} — ${dateStr(m.zone, start)}, ${timeStr(m.zone, start)} (${cityOf(m.zone)})`).join("\n") +
+    members.map(m => `${m.name} — ${dateStr(m.zone, start)}, ${timeStr(m.zone, start)} (${placeOf(m)})`).join("\n") +
     `\n\nLength: ${dur >= 60 ? (dur / 60) + " hr" : dur + " min"}. Works for everyone?`;
   $("waBtn").href = "https://wa.me/?text=" + encodeURIComponent(msg);
   $("copyBtn").onclick = async () => {
@@ -397,11 +418,6 @@ function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<":
 
 /* ---------- init ---------- */
 function renderAll() { renderPlanner(); tickClocks(); }
-
-const dl = document.createElement("datalist");
-dl.id = "zonelist";
-dl.innerHTML = allZones.map(z => `<option value="${z}">`).join("");
-document.body.appendChild(dl);
 
 const today = new Date();
 $("dateInput").value = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
