@@ -28,8 +28,9 @@ Built in Claude Cowork; now maintained here.
   last only until reload — permanent changes go in this block.
 - `nextSession` (same block) holds the next catch-up: `date` (ISO with
   offset, "" = nothing booked), `facilitator` (rotation:
-  Sean → Matan → Corey → Toby; changeable on-page via a dropdown), and
-  `question` (the facilitator's check-in question). Update it after each
+  Sean → Matan → Corey → Toby; changeable on-page via a dropdown),
+  `question` (the facilitator's check-in question), and `topic` (what the
+  next catch-up is about; editable on-page). Update it after each
   session is agreed. The banner is always visible: countdown when booked,
   a friendly prompt otherwise; nudges the facilitator if the question is
   still "" within 7 days of the session.

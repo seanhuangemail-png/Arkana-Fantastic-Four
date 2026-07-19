@@ -54,6 +54,13 @@
     border: 1px solid var(--line); border-radius: 7px;
     padding: 3px 8px; font-size: .85rem; color-scheme: dark; cursor: pointer;
   }
+  .next input[type=text] {
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 7px;
+    padding: 4px 10px; font-size: .85rem;
+    width: min(340px, 75vw); text-align: center;
+  }
+  .next input[type=text]:focus { outline: none; border-color: var(--accent); }
 
   /* ---- monthly commitments ---- */
   .commits { display: grid; grid-template-columns: repeat(auto-fit, minmax(225px, 1fr)); gap: 14px; }
@@ -231,10 +238,6 @@
 
   <section style="margin-top:38px">
     <h2>Monthly commitments</h2>
-    <p style="color:var(--dim);font-size:.88rem;margin-bottom:12px">
-      What each of us is committing to this month — one per line.
-      To make the list permanent for everyone, send it to Sean to bake into the site.
-    </p>
     <div class="commits" id="commits"></div>
   </section>
 
@@ -273,11 +276,13 @@ let members = [
      e.g. "2026-08-15T10:00:00+10:00" (that's 10am Melbourne time —
      the page shows it in each viewer's own timezone automatically).
    facilitator: whose turn to host. Rotation: Sean → Matan → Corey → Toby.
-   question: the facilitator's check-in question ("" until they share it). */
+   question: the facilitator's check-in question ("" until they share it).
+   topic: what the next catch-up is about ("" = not decided yet). */
 let nextSession = {
   date: "",
   facilitator: "Sean",
   question: "",
+  topic: "",
 };
 /* ====================================================== */
 
@@ -366,17 +371,25 @@ function facilitatorSelect() {
     names.map(n => `<option${n === nextSession.facilitator ? " selected" : ""}>${escapeHtml(n)}</option>`).join("") +
     `</select>`;
 }
-function wireFacilitator() {
+function topicRow() {
+  return `<div class="sub" style="margin-top:9px">Topic: <input id="topicInp" type="text"
+    placeholder="What are we exploring next?" value="${escapeHtml(nextSession.topic || "")}" spellcheck="false"></div>`;
+}
+function wireBanner() {
   const fs = $("facSel");
   if (fs) fs.onchange = e => { nextSession.facilitator = e.target.value; renderNext(); };
+  const ti = $("topicInp");
+  if (ti) ti.oninput = e => { nextSession.topic = e.target.value; };
 }
 function renderNext() {
   const el = $("nextBanner");
+  // don't rebuild the banner mid-typing (the minute-refresh would eat the cursor)
+  if (document.activeElement && document.activeElement.id === "topicInp") return;
   el.classList.add("show");
   if (!nextSession.date) {
     el.innerHTML = `<div class="big">🌿 No catch-up booked yet — use the planner below to find a time 👇</div>
-      <div class="sub">Facilitator this month: ${facilitatorSelect()}</div>`;
-    wireFacilitator();
+      <div class="sub">Facilitator this month: ${facilitatorSelect()}</div>` + topicRow();
+    wireBanner();
     return;
   }
   const d = new Date(nextSession.date);
@@ -395,6 +408,7 @@ function renderNext() {
     html = `<div class="big">🌿 Next catch-up: ${when} <span style="color:var(--dim);font-weight:400">(your time)</span></div>
       <div class="sub">${away} · Facilitator: ${facilitatorSelect()}</div>`;
   }
+  html += topicRow();
   if (nextSession.question) {
     html += `<div class="q">“${escapeHtml(nextSession.question)}”</div>`;
   } else if (diff > 0 && days < 7) {
@@ -402,7 +416,7 @@ function renderNext() {
   }
   el.innerHTML = html;
   el.classList.add("show");
-  wireFacilitator();
+  wireBanner();
 }
 
 /* ---------- monthly commitments ---------- */
