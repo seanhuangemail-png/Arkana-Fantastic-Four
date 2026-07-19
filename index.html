@@ -325,6 +325,7 @@ function placeOf(m) { return m.place || cityOf(m.zone); }
 /* Friendly searches that aren't official IANA names */
 const ZONE_ALIASES = {
   "minnesota": ["America/Chicago"],
+  "minneapolis": ["America/Chicago"],
   "thailand": ["Asia/Bangkok"],
   "peru": ["America/Lima"],
   "vietnam": ["Asia/Ho_Chi_Minh"],
@@ -334,26 +335,32 @@ const ZONE_ALIASES = {
   "uae": ["Asia/Dubai"],
   "bali": ["Asia/Makassar"],
 };
+function titleCase(s) { return s.replace(/\b\w/g, c => c.toUpperCase()); }
+/* Returns [{z, label, sub}] — aliases match as you type and appear first */
 function zoneMatches(qRaw) {
   const q = qRaw.trim().toLowerCase().replace(/\s+/g, " ");
-  if (!q) return allZones.slice(0, 60);
-  const out = [];
+  const out = [], seen = new Set();
+  if (q) {
+    for (const k in ZONE_ALIASES) {
+      if (k.startsWith(q) || q.startsWith(k)) {
+        ZONE_ALIASES[k].forEach(z => {
+          if (!seen.has(k + z)) { out.push({ z, label: titleCase(k), sub: cityOf(z) + " time" }); seen.add(k + z); }
+        });
+      }
+    }
+  }
   for (const z of allZones) {
-    if (z.toLowerCase().replace(/_/g, " ").replace(/\//g, " ").includes(q)) {
-      out.push(z);
+    if (!q || z.toLowerCase().replace(/_/g, " ").replace(/\//g, " ").includes(q)) {
+      out.push({ z, label: cityOf(z), sub: z });
       if (out.length >= 60) break;
     }
   }
-  (ZONE_ALIASES[q] || []).slice().reverse().forEach(a => {
-    const k = out.indexOf(a); if (k > -1) out.splice(k, 1);
-    out.unshift(a);
-  });
   return out;
 }
-function setMemberZone(i, z) {
+function setMemberZone(i, z, place) {
   const m = members[i];
   m.zone = z;
-  m.place = cityOf(z);   // label follows the new zone
+  m.place = place || cityOf(z);   // label follows what they searched for
   renderCards(); renderAll();
 }
 function quality(hour) {          // start-hour comfort rating
@@ -465,7 +472,7 @@ function renderCards() {
       <span class="badge" data-badge="${i}"></span>
       <input class="name" value="${m.name}" data-name="${i}" spellcheck="false">
       <div class="zonebox">
-        <input class="zone" data-zone="${i}" value="${escapeHtml(cityOf(m.zone))}" spellcheck="false" autocomplete="off" placeholder="Type a city…" title="Timezone — type a city to search">
+        <input class="zone" data-zone="${i}" value="${escapeHtml(placeOf(m))}" spellcheck="false" autocomplete="off" placeholder="Type a city…" title="Timezone — type a city to search">
         <div class="zonelist" data-zlist="${i}"></div>
       </div>
       <div class="clock" data-clock="${i}"></div>
@@ -493,7 +500,7 @@ function renderCards() {
       items = zoneMatches(q);
       active = 0;
       list.innerHTML = items.length
-        ? items.map((z, k) => `<div data-z="${z}" class="${k === 0 ? "active" : ""}">${cityOf(z)} <span style="opacity:.55;font-size:.72rem">${z}</span></div>`).join("")
+        ? items.map((it, k) => `<div data-z="${it.z}" data-place="${escapeHtml(it.label)}" class="${k === 0 ? "active" : ""}">${escapeHtml(it.label)} <span style="opacity:.55;font-size:.72rem">${escapeHtml(it.sub)}</span></div>`).join("")
         : `<div style="cursor:default">No matches — try another spelling</div>`;
       list.classList.add("open");
     };
@@ -507,7 +514,7 @@ function renderCards() {
         [...list.children].forEach((c, k) => c.classList.toggle("active", k === active));
         list.children[active].scrollIntoView({ block: "nearest" });
       } else if (e.key === "Enter") {
-        e.preventDefault(); setMemberZone(i, items[active]);
+        e.preventDefault(); setMemberZone(i, items[active].z, items[active].label);
       } else if (e.key === "Escape") {
         inp.blur();
       }
@@ -515,12 +522,12 @@ function renderCards() {
     // put things back if they click away without choosing
     inp.addEventListener("blur", () => setTimeout(() => {
       list.classList.remove("open");
-      inp.value = cityOf(members[i] ? members[i].zone : "");
+      if (members[i]) inp.value = placeOf(members[i]);
     }, 150));
     // mousedown (not click) so it fires before the input's blur
     list.addEventListener("mousedown", e => {
       const t = e.target.closest("[data-z]");
-      if (t) { e.preventDefault(); setMemberZone(i, t.dataset.z); }
+      if (t) { e.preventDefault(); setMemberZone(i, t.dataset.z, t.dataset.place); }
     });
   });
   wrap.querySelectorAll("[data-remove]").forEach(el =>
