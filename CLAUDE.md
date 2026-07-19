@@ -21,8 +21,17 @@ Built in Claude Cowork; now maintained here.
 
 ## How the page works
 - Members are defined in the `EDIT DEFAULTS HERE` block near the top of the
-  script in `index.html` — name + IANA timezone. This is where to edit when
-  someone moves (e.g. Toby: Dubai → Thailand).
+  script in `index.html` — name + IANA timezone + `place` (friendly label,
+  e.g. Minnesota runs on America/Chicago). This is where to edit when
+  someone moves. Visitors can change zones freely via a type-to-search
+  picker (aliases like "Minnesota"/"Thailand" work), but browser changes
+  last only until reload — permanent changes go in this block.
+- `nextSession` (same block) holds the next catch-up: `date` (ISO with
+  offset, "" = nothing booked), `facilitator` (rotation:
+  Sean → Matan → Corey → Toby), and `question` (the facilitator's check-in
+  question). Update it after each session is agreed. The page shows a
+  countdown banner, and nudges the facilitator if the question is still ""
+  within 7 days of the session.
 - `quality(hour)` defines "reasonable hours": good = 8am–9pm, stretch = 7am and
   9–11pm, otherwise asleep. Adjust here if the group wants different limits.
 - `EVENT_TITLE` sets the name used on Google Calendar invites and WhatsApp

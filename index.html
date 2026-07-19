@@ -33,6 +33,17 @@
   header p { color: var(--dim); margin-top: 6px; font-size: .95rem; }
   .leaf { color: var(--accent); }
 
+  /* ---- next session banner ---- */
+  .next {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px 18px; margin-bottom: 26px; text-align: center; display: none;
+  }
+  .next.show { display: block; }
+  .next .big { font-size: 1.05rem; font-weight: 650; }
+  .next .sub { color: var(--dim); font-size: .88rem; margin-top: 5px; }
+  .next .q { margin-top: 10px; font-style: italic; color: var(--accent); }
+  .next .nudge { margin-top: 10px; color: var(--amber); font-size: .88rem; }
+
   /* ---- member cards ---- */
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(225px, 1fr)); gap: 14px; margin-bottom: 34px; }
   .card {
@@ -48,13 +59,24 @@
     border-bottom: 1px dashed transparent; padding-bottom: 2px;
   }
   .card .name:hover, .card .name:focus { border-bottom-color: var(--line); outline: none; }
+  .zonebox { position: relative; margin-top: 8px; }
   .card .zone {
-    width: 100%; margin-top: 8px;
+    width: 100%;
     background: var(--panel2); color: var(--dim);
     border: 1px solid var(--line); border-radius: 8px;
     padding: 6px 8px; font-size: .82rem;
-    cursor: pointer; color-scheme: dark;
+    color-scheme: dark;
   }
+  .card .zone:focus { outline: none; border-color: var(--accent); color: var(--text); }
+  .zonelist {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+    max-height: 200px; overflow-y: auto; display: none;
+    box-shadow: 0 8px 20px rgba(0,0,0,.4);
+  }
+  .zonelist.open { display: block; }
+  .zonelist div { padding: 6px 10px; font-size: .8rem; cursor: pointer; color: var(--dim); }
+  .zonelist div:hover, .zonelist div.active { background: var(--green-soft); color: var(--text); }
   .card .clock { font-size: 1.9rem; font-weight: 300; margin-top: 12px; font-variant-numeric: tabular-nums; }
   .card .clock .ampm { font-size: 1rem; color: var(--dim); margin-left: 4px; }
   .card .date { color: var(--dim); font-size: .85rem; margin-top: 2px; }
@@ -142,6 +164,8 @@
     <p>Arkana ayahuasca integration group — find a time when everyone is awake, human, and connected.</p>
   </header>
 
+  <div class="next" id="nextBanner"></div>
+
   <div class="cards" id="cards"></div>
 
   <section>
@@ -181,6 +205,16 @@
     </div>
   </section>
 
+  <section style="margin-top:38px">
+    <h2>Check-in question ideas</h2>
+    <p style="color:var(--dim);font-size:.88rem;margin-bottom:12px">
+      Facilitator of the month: draw a prompt for inspiration, or write your own —
+      send it to the group a week before the catch-up.
+    </p>
+    <button class="btn" id="drawBtn">🎲 Draw a question</button>
+    <div id="drawnQ" style="margin-top:14px;font-style:italic;color:var(--accent);font-size:1.02rem"></div>
+  </section>
+
   <footer>Times auto-adjust for daylight saving. Edit names & cities above — changes last until the page is reloaded.</footer>
 </div>
 
@@ -197,6 +231,18 @@ let members = [
   { name: "Corey", zone: "America/Chicago",     place: "Minnesota" },
   { name: "Toby",  zone: "Asia/Bangkok",        place: "Bangkok, Thailand" },
 ];
+
+/* Next scheduled catch-up — update after each session is agreed.
+   date: leave "" if nothing booked. Otherwise ISO format with offset,
+     e.g. "2026-08-15T10:00:00+10:00" (that's 10am Melbourne time —
+     the page shows it in each viewer's own timezone automatically).
+   facilitator: whose turn to host. Rotation: Sean → Matan → Corey → Toby.
+   question: the facilitator's check-in question ("" until they share it). */
+let nextSession = {
+  date: "",
+  facilitator: "Sean",
+  question: "",
+};
 /* ====================================================== */
 
 const EVENT_TITLE = "Arkana Fantastic Four — monthly catch-up";
@@ -234,19 +280,40 @@ function dateStr(zone, date) {
 function cityOf(zone) { return zone.split("/").pop().replace(/_/g, " "); }
 function placeOf(m) { return m.place || cityOf(m.zone); }
 
-/* Build the <option> list for the timezone dropdown, grouped by region */
-function zoneOptions(selected) {
-  const groups = {};
-  allZones.forEach(z => {
-    const g = z.includes("/") ? z.split("/")[0] : "Other";
-    (groups[g] = groups[g] || []).push(z);
+/* ---------- searchable timezone picker ---------- */
+/* Friendly searches that aren't official IANA names */
+const ZONE_ALIASES = {
+  "minnesota": ["America/Chicago"],
+  "thailand": ["Asia/Bangkok"],
+  "peru": ["America/Lima"],
+  "vietnam": ["Asia/Ho_Chi_Minh"],
+  "india": ["Asia/Kolkata"],
+  "uk": ["Europe/London"],
+  "england": ["Europe/London"],
+  "uae": ["Asia/Dubai"],
+  "bali": ["Asia/Makassar"],
+};
+function zoneMatches(qRaw) {
+  const q = qRaw.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!q) return allZones.slice(0, 60);
+  const out = [];
+  for (const z of allZones) {
+    if (z.toLowerCase().replace(/_/g, " ").replace(/\//g, " ").includes(q)) {
+      out.push(z);
+      if (out.length >= 60) break;
+    }
+  }
+  (ZONE_ALIASES[q] || []).slice().reverse().forEach(a => {
+    const k = out.indexOf(a); if (k > -1) out.splice(k, 1);
+    out.unshift(a);
   });
-  return Object.keys(groups).sort().map(g =>
-    `<optgroup label="${g}">` + groups[g].map(z => {
-      const label = z.includes("/") ? z.split("/").slice(1).join(" / ").replace(/_/g, " ") : z;
-      return `<option value="${z}"${z === selected ? " selected" : ""}>${label}</option>`;
-    }).join("") + `</optgroup>`
-  ).join("");
+  return out;
+}
+function setMemberZone(i, z) {
+  const m = members[i];
+  m.zone = z;
+  m.place = cityOf(z);   // label follows the new zone
+  renderCards(); renderAll();
 }
 function quality(hour) {          // start-hour comfort rating
   if (hour >= 8 && hour < 21) return "good";
@@ -254,6 +321,58 @@ function quality(hour) {          // start-hour comfort rating
   return "bad";
 }
 const QLABEL = { good: "😊", ok: "😐", bad: "😴" };
+
+/* ---------- next session banner ---------- */
+function renderNext() {
+  const el = $("nextBanner");
+  el.classList.add("show");
+  if (!nextSession.date) {
+    el.innerHTML = `<div class="big">🌿 No catch-up booked yet — use the planner below to find a time 👇</div>
+      <div class="sub">Facilitator this month: <b>${escapeHtml(nextSession.facilitator)}</b></div>`;
+    return;
+  }
+  const d = new Date(nextSession.date);
+  const diff = d - new Date();
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const when = new Intl.DateTimeFormat("en-AU", {
+    timeZone: viewerZone, weekday: "long", day: "numeric", month: "long",
+    hour: "numeric", minute: "2-digit", hour12: true,
+  }).format(d);
+  let html;
+  if (diff <= 0) {
+    html = `<div class="big">🌿 Catch-up day! ${when} (your time)</div>`;
+  } else {
+    const away = (days > 0 ? `${days} day${days === 1 ? "" : "s"} ` : "") + `${hours} hour${hours === 1 ? "" : "s"} away`;
+    html = `<div class="big">🌿 Next catch-up: ${when} <span style="color:var(--dim);font-weight:400">(your time)</span></div>
+      <div class="sub">${away} · Facilitator: <b>${escapeHtml(nextSession.facilitator)}</b></div>`;
+  }
+  if (nextSession.question) {
+    html += `<div class="q">“${escapeHtml(nextSession.question)}”</div>`;
+  } else if (diff > 0 && days < 7) {
+    html += `<div class="nudge">🔔 ${escapeHtml(nextSession.facilitator)}, it's your week to send the check-in question!</div>`;
+  }
+  el.innerHTML = html;
+  el.classList.add("show");
+}
+
+/* ---------- check-in question bank ---------- */
+const QUESTIONS = [
+  "What has stayed with you from ceremony since we last spoke?",
+  "What intention are you working with this month?",
+  "Where in daily life have you noticed the medicine's lessons showing up?",
+  "What's one thing you're finding hard to integrate right now?",
+  "What are you most grateful for this month?",
+  "What old pattern have you noticed yourself falling back into?",
+  "What practice has been supporting you lately?",
+  "If your ceremony self could send a message to your current self, what would it say?",
+  "What relationship in your life is asking for attention?",
+  "What are you ready to let go of?",
+  "Where have you surprised yourself recently?",
+  "What does your body want you to know this month?",
+  "What has brought you unexpected joy lately?",
+  "What would you like the group to hold you accountable to this month?",
+];
 
 /* ---------- member cards ---------- */
 function renderCards() {
@@ -265,7 +384,10 @@ function renderCards() {
     card.innerHTML = `
       <span class="badge" data-badge="${i}"></span>
       <input class="name" value="${m.name}" data-name="${i}" spellcheck="false">
-      <select class="zone" data-zone="${i}" title="Timezone">${zoneOptions(m.zone)}</select>
+      <div class="zonebox">
+        <input class="zone" data-zone="${i}" value="${escapeHtml(cityOf(m.zone))}" spellcheck="false" autocomplete="off" placeholder="Type a city…" title="Timezone — type a city to search">
+        <div class="zonelist" data-zlist="${i}"></div>
+      </div>
       <div class="clock" data-clock="${i}"></div>
       <div class="date" data-date="${i}"></div>
       ${members.length > 2 ? `<button class="remove" data-remove="${i}">remove</button>` : ""}
@@ -280,13 +402,44 @@ function renderCards() {
 
   wrap.querySelectorAll("[data-name]").forEach(el =>
     el.addEventListener("input", e => { members[e.target.dataset.name].name = e.target.value; renderPlanner(); }));
-  wrap.querySelectorAll("[data-zone]").forEach(el =>
-    el.addEventListener("change", e => {
-      const m = members[e.target.dataset.zone];
-      m.zone = e.target.value;
-      m.place = cityOf(m.zone);   // label follows the new zone
-      renderAll();
-    }));
+  wrap.querySelectorAll("input[data-zone]").forEach(inp => {
+    const i = +inp.dataset.zone;
+    const list = wrap.querySelector(`[data-zlist="${i}"]`);
+    let items = [], active = 0;
+    const openList = q => {
+      items = zoneMatches(q);
+      active = 0;
+      list.innerHTML = items.length
+        ? items.map((z, k) => `<div data-z="${z}" class="${k === 0 ? "active" : ""}">${cityOf(z)} <span style="opacity:.55;font-size:.72rem">${z}</span></div>`).join("")
+        : `<div style="cursor:default">No matches — try another spelling</div>`;
+      list.classList.add("open");
+    };
+    inp.addEventListener("focus", () => { inp.select(); openList(""); });
+    inp.addEventListener("input", () => openList(inp.value));
+    inp.addEventListener("keydown", e => {
+      if (!list.classList.contains("open") || !items.length) return;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        active = (active + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+        [...list.children].forEach((c, k) => c.classList.toggle("active", k === active));
+        list.children[active].scrollIntoView({ block: "nearest" });
+      } else if (e.key === "Enter") {
+        e.preventDefault(); setMemberZone(i, items[active]);
+      } else if (e.key === "Escape") {
+        inp.blur();
+      }
+    });
+    // put things back if they click away without choosing
+    inp.addEventListener("blur", () => setTimeout(() => {
+      list.classList.remove("open");
+      inp.value = cityOf(members[i] ? members[i].zone : "");
+    }, 150));
+    // mousedown (not click) so it fires before the input's blur
+    list.addEventListener("mousedown", e => {
+      const t = e.target.closest("[data-z]");
+      if (t) { e.preventDefault(); setMemberZone(i, t.dataset.z); }
+    });
+  });
   wrap.querySelectorAll("[data-remove]").forEach(el =>
     el.addEventListener("click", e => { members.splice(e.target.dataset.remove, 1); renderCards(); renderAll(); }));
   tickClocks();
@@ -425,9 +578,19 @@ $("viewerZoneLabel").textContent = viewerZone;
 $("dateInput").addEventListener("change", () => { selectedStart = null; $("details").classList.remove("show"); renderPlanner(); });
 $("durInput").addEventListener("change", () => { if (selectedStart) selectSlot(selectedStart); });
 
+let lastQ = -1;
+$("drawBtn").addEventListener("click", () => {
+  let i;
+  do { i = Math.floor(Math.random() * QUESTIONS.length); } while (i === lastQ && QUESTIONS.length > 1);
+  lastQ = i;
+  $("drawnQ").textContent = "“" + QUESTIONS[i] + "”";
+});
+
 renderCards();
 renderPlanner();
+renderNext();
 setInterval(tickClocks, 1000);
+setInterval(renderNext, 60000);   // refresh countdown every minute
 </script>
 </body>
 </html>
