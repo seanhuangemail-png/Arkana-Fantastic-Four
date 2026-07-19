@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arkana Fantastic Four — Time Planner</title>
+<style>
+  :root {
+    --bg: #0e1613;
+    --panel: #16211c;
+    --panel2: #1c2a23;
+    --line: #2a3b32;
+    --text: #e8f0ea;
+    --dim: #9db3a6;
+    --green: #3fb87f;
+    --green-soft: rgba(63,184,127,.16);
+    --amber: #d9a04a;
+    --amber-soft: rgba(217,160,74,.14);
+    --bad: #3a3f3c;
+    --accent: #7fd4a8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px 64px;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 28px; }
+  header h1 { font-size: 1.7rem; font-weight: 650; letter-spacing: .3px; }
+  header p { color: var(--dim); margin-top: 6px; font-size: .95rem; }
+  .leaf { color: var(--accent); }
+
+  /* ---- member cards ---- */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(225px, 1fr)); gap: 14px; margin-bottom: 34px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 16px 14px;
+    position: relative;
+  }
+  .card .name {
+    background: transparent; border: none; color: var(--text);
+    font-size: 1.05rem; font-weight: 650; width: 100%;
+    border-bottom: 1px dashed transparent; padding-bottom: 2px;
+  }
+  .card .name:hover, .card .name:focus { border-bottom-color: var(--line); outline: none; }
+  .card .zone {
+    width: 100%; margin-top: 8px;
+    background: var(--panel2); color: var(--dim);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 8px; font-size: .82rem;
+  }
+  .card .clock { font-size: 1.9rem; font-weight: 300; margin-top: 12px; font-variant-numeric: tabular-nums; }
+  .card .clock .ampm { font-size: 1rem; color: var(--dim); margin-left: 4px; }
+  .card .date { color: var(--dim); font-size: .85rem; margin-top: 2px; }
+  .card .badge { position: absolute; top: 14px; right: 14px; font-size: 1.15rem; }
+  .card .remove {
+    position: absolute; bottom: 10px; right: 12px;
+    background: none; border: none; color: var(--dim); cursor: pointer; font-size: .78rem; opacity: .5;
+  }
+  .card .remove:hover { opacity: 1; color: #e08a8a; }
+  .addbtn {
+    border: 1px dashed var(--line); border-radius: 14px; background: transparent;
+    color: var(--dim); font-size: .9rem; cursor: pointer; min-height: 120px;
+  }
+  .addbtn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ---- planner ---- */
+  section h2 { font-size: 1.15rem; margin-bottom: 12px; font-weight: 650; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+  .controls label { color: var(--dim); font-size: .88rem; }
+  .controls input[type=date], .controls select {
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-size: .9rem;
+    color-scheme: dark;
+  }
+  .legend { display: flex; gap: 14px; margin-left: auto; font-size: .8rem; color: var(--dim); flex-wrap: wrap; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+
+  .gridwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 10px; }
+  .tgrid { display: grid; grid-template-columns: 110px repeat(24, minmax(34px, 1fr)); gap: 3px; min-width: 950px; }
+  .tgrid .rowlabel {
+    font-size: .85rem; color: var(--text); display: flex; align-items: center;
+    padding-left: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tgrid .hourhead {
+    font-size: .68rem; color: var(--dim); text-align: center; padding: 3px 0; cursor: pointer;
+    border-radius: 5px;
+  }
+  .tgrid .hourhead:hover { color: var(--accent); }
+  .cell {
+    height: 34px; border-radius: 6px; text-align: center; font-size: .72rem;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--dim); background: var(--bad);
+    border: 1px solid transparent;
+  }
+  .cell.good { background: var(--green-soft); color: var(--green); }
+  .cell.ok   { background: var(--amber-soft); color: var(--amber); }
+  .cell.allgood { border-color: var(--green); }
+  .cell.selected { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+  .best { margin: 18px 0 6px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .best .chip {
+    background: var(--panel2); border: 1px solid var(--green); color: var(--text);
+    border-radius: 20px; padding: 6px 14px; font-size: .85rem; cursor: pointer;
+  }
+  .best .chip.okchip { border-color: var(--amber); }
+  .best .chip:hover { background: var(--green-soft); }
+  .best .none { color: var(--dim); font-size: .88rem; padding: 6px 0; }
+
+  /* ---- details ---- */
+  .details {
+    margin-top: 22px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px; display: none;
+  }
+  .details.show { display: block; }
+  .details h3 { font-size: 1.02rem; margin-bottom: 12px; }
+  .details table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  .details td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  .details td:first-child { color: var(--dim); width: 120px; }
+  .details .q { float: right; font-size: .8rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .btn {
+    border: 1px solid var(--line); background: var(--panel2); color: var(--text);
+    border-radius: 9px; padding: 9px 16px; font-size: .88rem; cursor: pointer; text-decoration: none;
+  }
+  .btn.primary { background: var(--green-soft); border-color: var(--green); color: var(--accent); }
+  .btn:hover { border-color: var(--accent); }
+  .copied { color: var(--green); font-size: .85rem; align-self: center; display: none; }
+  footer { text-align: center; color: var(--dim); font-size: .78rem; margin-top: 40px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="leaf">🌿</span> Arkana Fantastic Four</h1>
+    <p>Arkana ayahuasca integration group — find a time when everyone is awake, human, and preferably caffeinated.</p>
+  </header>
+
+  <div class="cards" id="cards"></div>
+
+  <section>
+    <h2>Plan a session</h2>
+    <div class="controls">
+      <label>Date <input type="date" id="dateInput"></label>
+      <label>Length
+        <select id="durInput">
+          <option value="60">1 hour</option>
+          <option value="90" selected>1.5 hours</option>
+          <option value="120">2 hours</option>
+        </select>
+      </label>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--green)"></span>Good (8am–9pm)</span>
+        <span><span class="dot" style="background:var(--amber)"></span>Stretch (7am / 9–11pm)</span>
+        <span><span class="dot" style="background:var(--bad)"></span>Asleep</span>
+      </div>
+    </div>
+
+    <div class="gridwrap"><div class="tgrid" id="tgrid"></div></div>
+    <p style="color:var(--dim);font-size:.8rem;margin-top:8px">
+      Columns are hours of the chosen date in <b id="viewerZoneLabel"></b> (your device's timezone). Click any column to pick a start time.
+    </p>
+
+    <div class="best" id="best"></div>
+
+    <div class="details" id="details">
+      <h3 id="detailsTitle"></h3>
+      <table id="detailsTable"></table>
+      <div class="actions">
+        <a class="btn primary" id="gcalBtn" target="_blank" rel="noopener">📅 Google Calendar invite</a>
+        <button class="btn" id="copyBtn">💬 Copy WhatsApp message</button>
+        <a class="btn" id="waBtn" target="_blank" rel="noopener">Open in WhatsApp</a>
+        <span class="copied" id="copiedMsg">Copied ✓</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>Times auto-adjust for daylight saving. Edit names & cities above — changes last until the page is reloaded.</footer>
+</div>
+
+<script>
+/* ================= EDIT DEFAULTS HERE =================
+   When someone moves, change their "zone" below and republish.
+   Zones are IANA names, e.g. "Asia/Dubai", "Europe/London". */
+let members = [
+  { name: "Sean",  zone: "Australia/Sydney" },
+  { name: "Matan", zone: "America/Lima" },
+  { name: "Corey", zone: "America/Chicago" },
+  { name: "Toby",  zone: "Asia/Bangkok" },
+];
+/* ====================================================== */
+
+const EVENT_TITLE = "Arkana Fantastic Four — monthly catch-up";
+const $ = id => document.getElementById(id);
+const viewerZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+let selectedStart = null;   // Date (UTC instant)
+
+const allZones = (Intl.supportedValuesOf ? Intl.supportedValuesOf("timeZone") : [
+  "Australia/Sydney","America/Lima","America/Chicago","Asia/Bangkok","Asia/Dubai","Europe/London","America/New_York","America/Los_Angeles"
+]);
+
+/* ---------- timezone helpers ---------- */
+function partsIn(zone, date) {
+  const fmt = new Intl.DateTimeFormat("en-AU", {
+    timeZone: zone, hour12: false, weekday: "short",
+    year: "numeric", month: "short", day: "numeric",
+    hour: "numeric", minute: "2-digit", second: "2-digit",
+  });
+  const o = {};
+  for (const p of fmt.formatToParts(date)) o[p.type] = p.value;
+  o.hourNum = parseInt(o.hour, 10) % 24;
+  return o;
+}
+function timeStr(zone, date, withSec) {
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: zone, hour: "numeric", minute: "2-digit",
+    second: withSec ? "2-digit" : undefined, hour12: true,
+  }).format(date).replace(/\s?(am|pm)/i, m => m.toLowerCase());
+}
+function dateStr(zone, date) {
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: zone, weekday: "short", day: "numeric", month: "short",
+  }).format(date);
+}
+function cityOf(zone) { return zone.split("/").pop().replace(/_/g, " "); }
+function quality(hour) {          // start-hour comfort rating
+  if (hour >= 8 && hour < 21) return "good";
+  if (hour === 7 || (hour >= 21 && hour < 23)) return "ok";
+  return "bad";
+}
+const QLABEL = { good: "😊", ok: "😐", bad: "😴" };
+
+/* ---------- member cards ---------- */
+function renderCards() {
+  const wrap = $("cards");
+  wrap.innerHTML = "";
+  members.forEach((m, i) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <span class="badge" data-badge="${i}"></span>
+      <input class="name" value="${m.name}" data-name="${i}" spellcheck="false">
+      <input class="zone" list="zonelist" value="${m.zone}" data-zone="${i}" spellcheck="false">
+      <div class="clock" data-clock="${i}"></div>
+      <div class="date" data-date="${i}"></div>
+      ${members.length > 2 ? `<button class="remove" data-remove="${i}">remove</button>` : ""}
+    `;
+    wrap.appendChild(card);
+  });
+  const add = document.createElement("button");
+  add.className = "addbtn";
+  add.textContent = "+ add person";
+  add.onclick = () => { members.push({ name: "New person", zone: viewerZone }); renderCards(); renderAll(); };
+  wrap.appendChild(add);
+
+  wrap.querySelectorAll("[data-name]").forEach(el =>
+    el.addEventListener("input", e => { members[e.target.dataset.name].name = e.target.value; renderPlanner(); }));
+  wrap.querySelectorAll("[data-zone]").forEach(el =>
+    el.addEventListener("change", e => {
+      const v = e.target.value.trim();
+      if (allZones.includes(v)) { members[e.target.dataset.zone].zone = v; e.target.style.borderColor = ""; renderAll(); }
+      else e.target.style.borderColor = "#e08a8a";
+    }));
+  wrap.querySelectorAll("[data-remove]").forEach(el =>
+    el.addEventListener("click", e => { members.splice(e.target.dataset.remove, 1); renderCards(); renderAll(); }));
+  tickClocks();
+}
+
+function tickClocks() {
+  const now = new Date();
+  members.forEach((m, i) => {
+    const clockEl = document.querySelector(`[data-clock="${i}"]`);
+    if (!clockEl) return;
+    const t = timeStr(m.zone, now, true);
+    const mAmpm = t.match(/(am|pm)$/);
+    clockEl.innerHTML = t.replace(/(am|pm)$/, "") + `<span class="ampm">${mAmpm ? mAmpm[1] : ""}</span>`;
+    document.querySelector(`[data-date="${i}"]`).textContent = dateStr(m.zone, now) + " · " + cityOf(m.zone);
+    const h = partsIn(m.zone, now).hourNum;
+    document.querySelector(`[data-badge="${i}"]`).textContent = (h >= 7 && h < 19) ? "☀️" : "🌙";
+  });
+}
+
+/* ---------- planner grid ---------- */
+function slotDates() {
+  // 24 hourly UTC instants: hours 0–23 of the chosen date in the VIEWER's timezone
+  const [y, mo, d] = $("dateInput").value.split("-").map(Number);
+  const out = [];
+  for (let h = 0; h < 24; h++) out.push(new Date(y, mo - 1, d, h, 0, 0));
+  return out;
+}
+
+function renderPlanner() {
+  const grid = $("tgrid");
+  const slots = slotDates();
+  grid.style.gridTemplateColumns = `110px repeat(24, minmax(34px, 1fr))`;
+  let html = `<div class="rowlabel" style="color:var(--dim);font-size:.75rem">${cityOf(viewerZone)} →</div>`;
+  slots.forEach((s, idx) => {
+    const h = s.getHours();
+    html += `<div class="hourhead" data-slot="${idx}">${h === 0 ? "12a" : h < 12 ? h + "a" : h === 12 ? "12p" : (h - 12) + "p"}</div>`;
+  });
+
+  const colQuality = slots.map(() => "good");
+  members.forEach(m => {
+    html += `<div class="rowlabel">${escapeHtml(m.name)}</div>`;
+    slots.forEach((s, idx) => {
+      const p = partsIn(m.zone, s);
+      const q = quality(p.hourNum);
+      if (q === "bad") colQuality[idx] = "bad";
+      else if (q === "ok" && colQuality[idx] === "good") colQuality[idx] = "ok";
+      html += `<div class="cell ${q}" data-slot="${idx}" title="${escapeHtml(m.name)}: ${timeStr(m.zone, s)} ${p.weekday}">${p.hourNum}</div>`;
+    });
+  });
+  grid.innerHTML = html;
+
+  // outline columns where everyone is good, mark selection
+  grid.querySelectorAll(".cell").forEach(c => {
+    const idx = +c.dataset.slot;
+    if (colQuality[idx] === "good") c.classList.add("allgood");
+    if (selectedStart && slots[idx].getTime() === selectedStart.getTime()) c.classList.add("selected");
+  });
+  grid.querySelectorAll("[data-slot]").forEach(el =>
+    el.addEventListener("click", () => selectSlot(slots[+el.dataset.slot])));
+
+  renderBest(slots, colQuality);
+}
+
+function renderBest(slots, colQuality) {
+  const best = $("best");
+  best.innerHTML = "";
+  let chips = slots.map((s, i) => ({ s, q: colQuality[i] })).filter(x => x.q === "good");
+  let cls = "chip";
+  if (!chips.length) { chips = slots.map((s, i) => ({ s, q: colQuality[i] })).filter(x => x.q === "ok"); cls = "chip okchip"; }
+  if (!chips.length) {
+    best.innerHTML = `<span class="none">No shared waking window on this date — try the day before/after (weekends often work: someone's Saturday evening is another's Sunday morning).</span>`;
+    return;
+  }
+  const label = cls === "chip" ? "✅" : "⚠️";
+  chips.slice(0, 8).forEach(({ s }) => {
+    const b = document.createElement("button");
+    b.className = cls;
+    b.textContent = `${label} ${timeStr(viewerZone, s)} ${cityOf(viewerZone)}`;
+    b.onclick = () => selectSlot(s);
+    best.appendChild(b);
+  });
+}
+
+/* ---------- selection & outputs ---------- */
+function selectSlot(start) {
+  selectedStart = start;
+  const dur = +$("durInput").value;
+  const end = new Date(start.getTime() + dur * 60000);
+
+  $("details").classList.add("show");
+  $("detailsTitle").textContent = `Proposed: ${dateStr(viewerZone, start)}, ${timeStr(viewerZone, start)} – ${timeStr(viewerZone, end)} (${cityOf(viewerZone)} time)`;
+
+  let rows = "";
+  members.forEach(m => {
+    const q = quality(partsIn(m.zone, start).hourNum);
+    rows += `<tr><td>${escapeHtml(m.name)}</td><td>${dateStr(m.zone, start)}, ${timeStr(m.zone, start)} – ${timeStr(m.zone, end)}
+             <span style="color:var(--dim)">(${cityOf(m.zone)})</span><span class="q">${QLABEL[q]}</span></td></tr>`;
+  });
+  $("detailsTable").innerHTML = rows;
+
+  // Google Calendar link (UTC)
+  const fmt = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const details = members.map(m => `${m.name}: ${timeStr(m.zone, start)} ${dateStr(m.zone, start)} (${cityOf(m.zone)})`).join("\n");
+  $("gcalBtn").href = "https://calendar.google.com/calendar/render?action=TEMPLATE"
+    + "&text=" + encodeURIComponent(EVENT_TITLE)
+    + "&dates=" + fmt(start) + "/" + fmt(end)
+    + "&details=" + encodeURIComponent(details);
+
+  const msg = `🌿 ${EVENT_TITLE}\n\n` +
+    members.map(m => `${m.name} — ${dateStr(m.zone, start)}, ${timeStr(m.zone, start)} (${cityOf(m.zone)})`).join("\n") +
+    `\n\nLength: ${dur >= 60 ? (dur / 60) + " hr" : dur + " min"}. Works for everyone?`;
+  $("waBtn").href = "https://wa.me/?text=" + encodeURIComponent(msg);
+  $("copyBtn").onclick = async () => {
+    try { await navigator.clipboard.writeText(msg); }
+    catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = msg; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); ta.remove();
+    }
+    $("copiedMsg").style.display = "inline";
+    setTimeout(() => $("copiedMsg").style.display = "none", 1800);
+  };
+
+  renderPlanner();   // refresh selection outline
+  $("details").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+/* ---------- init ---------- */
+function renderAll() { renderPlanner(); tickClocks(); }
+
+const dl = document.createElement("datalist");
+dl.id = "zonelist";
+dl.innerHTML = allZones.map(z => `<option value="${z}">`).join("");
+document.body.appendChild(dl);
+
+const today = new Date();
+$("dateInput").value = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+$("viewerZoneLabel").textContent = viewerZone;
+$("dateInput").addEventListener("change", () => { selectedStart = null; $("details").classList.remove("show"); renderPlanner(); });
+$("durInput").addEventListener("change", () => { if (selectedStart) selectSlot(selectedStart); });
+
+renderCards();
+renderPlanner();
+setInterval(tickClocks, 1000);
+</script>
+</body>
+</html>
