@@ -43,6 +43,23 @@
   .next .sub { color: var(--dim); font-size: .88rem; margin-top: 5px; }
   .next .q { margin-top: 10px; font-style: italic; color: var(--accent); }
   .next .nudge { margin-top: 10px; color: var(--amber); font-size: .88rem; }
+  .next select {
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 7px;
+    padding: 3px 8px; font-size: .85rem; color-scheme: dark; cursor: pointer;
+  }
+
+  /* ---- monthly commitments ---- */
+  .commits { display: grid; grid-template-columns: repeat(auto-fit, minmax(225px, 1fr)); gap: 14px; }
+  .commit-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  .commit-card h3 { font-size: .98rem; margin-bottom: 8px; }
+  .commit-card textarea {
+    width: 100%; min-height: 110px; resize: vertical;
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; font-size: .86rem; font-family: inherit; line-height: 1.5;
+  }
+  .commit-card textarea:focus { outline: none; border-color: var(--accent); }
 
   /* ---- member cards ---- */
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(225px, 1fr)); gap: 14px; margin-bottom: 34px; }
@@ -206,6 +223,15 @@
   </section>
 
   <section style="margin-top:38px">
+    <h2>Monthly commitments</h2>
+    <p style="color:var(--dim);font-size:.88rem;margin-bottom:12px">
+      What each of us is committing to this month — one per line.
+      To make the list permanent for everyone, send it to Sean to bake into the site.
+    </p>
+    <div class="commits" id="commits"></div>
+  </section>
+
+  <section style="margin-top:38px">
     <h2>Check-in question ideas</h2>
     <p style="color:var(--dim);font-size:.88rem;margin-bottom:12px">
       Facilitator of the month: draw a prompt for inspiration, or write your own —
@@ -226,11 +252,14 @@
    runs on Chicago time, so zone is America/Chicago but place says
    Minnesota). */
 let members = [
-  { name: "Sean",  zone: "Australia/Melbourne", place: "Melbourne" },
-  { name: "Matan", zone: "America/Lima",        place: "Lima, Peru" },
-  { name: "Corey", zone: "America/Chicago",     place: "Minnesota" },
-  { name: "Toby",  zone: "Asia/Bangkok",        place: "Bangkok, Thailand" },
+  { name: "Sean",  zone: "Australia/Melbourne", place: "Melbourne",          commitments: [] },
+  { name: "Matan", zone: "America/Lima",        place: "Lima, Peru",         commitments: [] },
+  { name: "Corey", zone: "America/Chicago",     place: "Minnesota",          commitments: [] },
+  { name: "Toby",  zone: "Asia/Bangkok",        place: "Bangkok, Thailand",  commitments: [] },
 ];
+/* commitments: one string per line item, shown in the Monthly commitments
+   section, e.g. commitments: ["Daily meditation", "No alcohol"].
+   Edits made on the page last until reload — permanent lists go here. */
 
 /* Next scheduled catch-up — update after each session is agreed.
    date: leave "" if nothing booked. Otherwise ISO format with offset,
@@ -323,12 +352,24 @@ function quality(hour) {          // start-hour comfort rating
 const QLABEL = { good: "😊", ok: "😐", bad: "😴" };
 
 /* ---------- next session banner ---------- */
+function facilitatorSelect() {
+  const names = members.map(m => m.name);
+  if (!names.includes(nextSession.facilitator)) names.unshift(nextSession.facilitator);
+  return `<select id="facSel" title="Change facilitator">` +
+    names.map(n => `<option${n === nextSession.facilitator ? " selected" : ""}>${escapeHtml(n)}</option>`).join("") +
+    `</select>`;
+}
+function wireFacilitator() {
+  const fs = $("facSel");
+  if (fs) fs.onchange = e => { nextSession.facilitator = e.target.value; renderNext(); };
+}
 function renderNext() {
   const el = $("nextBanner");
   el.classList.add("show");
   if (!nextSession.date) {
     el.innerHTML = `<div class="big">🌿 No catch-up booked yet — use the planner below to find a time 👇</div>
-      <div class="sub">Facilitator this month: <b>${escapeHtml(nextSession.facilitator)}</b></div>`;
+      <div class="sub">Facilitator this month: ${facilitatorSelect()}</div>`;
+    wireFacilitator();
     return;
   }
   const d = new Date(nextSession.date);
@@ -345,7 +386,7 @@ function renderNext() {
   } else {
     const away = (days > 0 ? `${days} day${days === 1 ? "" : "s"} ` : "") + `${hours} hour${hours === 1 ? "" : "s"} away`;
     html = `<div class="big">🌿 Next catch-up: ${when} <span style="color:var(--dim);font-weight:400">(your time)</span></div>
-      <div class="sub">${away} · Facilitator: <b>${escapeHtml(nextSession.facilitator)}</b></div>`;
+      <div class="sub">${away} · Facilitator: ${facilitatorSelect()}</div>`;
   }
   if (nextSession.question) {
     html += `<div class="q">“${escapeHtml(nextSession.question)}”</div>`;
@@ -354,6 +395,24 @@ function renderNext() {
   }
   el.innerHTML = html;
   el.classList.add("show");
+  wireFacilitator();
+}
+
+/* ---------- monthly commitments ---------- */
+function renderCommits() {
+  const wrap = $("commits");
+  wrap.innerHTML = "";
+  members.forEach((m, i) => {
+    const card = document.createElement("div");
+    card.className = "commit-card";
+    card.innerHTML = `<h3>${escapeHtml(m.name)}</h3>
+      <textarea data-commit="${i}" placeholder="One commitment per line…" spellcheck="false">${escapeHtml((m.commitments || []).join("\n"))}</textarea>`;
+    wrap.appendChild(card);
+  });
+  wrap.querySelectorAll("[data-commit]").forEach(t =>
+    t.addEventListener("input", e => {
+      members[e.target.dataset.commit].commitments = e.target.value.split("\n").filter(x => x.trim());
+    }));
 }
 
 /* ---------- check-in question bank ---------- */
@@ -401,7 +460,10 @@ function renderCards() {
   wrap.appendChild(add);
 
   wrap.querySelectorAll("[data-name]").forEach(el =>
-    el.addEventListener("input", e => { members[e.target.dataset.name].name = e.target.value; renderPlanner(); }));
+    el.addEventListener("input", e => {
+      members[e.target.dataset.name].name = e.target.value;
+      renderPlanner(); renderCommits(); renderNext();   // keep name in sync everywhere
+    }));
   wrap.querySelectorAll("input[data-zone]").forEach(inp => {
     const i = +inp.dataset.zone;
     const list = wrap.querySelector(`[data-zlist="${i}"]`);
@@ -570,7 +632,7 @@ function selectSlot(start) {
 function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
 /* ---------- init ---------- */
-function renderAll() { renderPlanner(); tickClocks(); }
+function renderAll() { renderPlanner(); tickClocks(); renderCommits(); renderNext(); }
 
 const today = new Date();
 $("dateInput").value = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
@@ -588,6 +650,7 @@ $("drawBtn").addEventListener("click", () => {
 
 renderCards();
 renderPlanner();
+renderCommits();
 renderNext();
 setInterval(tickClocks, 1000);
 setInterval(renderNext, 60000);   // refresh countdown every minute

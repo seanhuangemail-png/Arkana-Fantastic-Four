@@ -28,10 +28,14 @@ Built in Claude Cowork; now maintained here.
   last only until reload — permanent changes go in this block.
 - `nextSession` (same block) holds the next catch-up: `date` (ISO with
   offset, "" = nothing booked), `facilitator` (rotation:
-  Sean → Matan → Corey → Toby), and `question` (the facilitator's check-in
-  question). Update it after each session is agreed. The page shows a
-  countdown banner, and nudges the facilitator if the question is still ""
-  within 7 days of the session.
+  Sean → Matan → Corey → Toby; changeable on-page via a dropdown), and
+  `question` (the facilitator's check-in question). Update it after each
+  session is agreed. The banner is always visible: countdown when booked,
+  a friendly prompt otherwise; nudges the facilitator if the question is
+  still "" within 7 days of the session.
+- Each member has a `commitments` array (one string per line item) shown
+  in the Monthly commitments section. On-page edits last until reload —
+  when the group settles their monthly lists, bake them into this block.
 - `quality(hour)` defines "reasonable hours": good = 8am–9pm, stretch = 7am and
   9–11pm, otherwise asleep. Adjust here if the group wants different limits.
 - `EVENT_TITLE` sets the name used on Google Calendar invites and WhatsApp
